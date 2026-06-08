@@ -1,0 +1,15 @@
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+coverage/
+pubspec.lock
+**/doc/api/
+.idea/
+*.iml

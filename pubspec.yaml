@@ -1,0 +1,45 @@
+name: image_editor
+description: Pure Flutter image annotation and background composition package.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_editor_platform_interface:
+    git:
+      url: https://github.com/kwikwicommon/image_editor.git
+      ref: main
+      path: image_editor_platform_interface
+  image_editor_macos:
+    git:
+      url: https://github.com/kwikwicommon/image_editor.git
+      ref: main
+      path: image_editor_macos
+  image_editor_windows:
+    git:
+      url: https://github.com/kwikwicommon/image_editor.git
+      ref: main
+      path: image_editor_windows
+  get: ^4.7.3
+  flutter_svg: ^2.2.3
+  uuid: ^4.5.2
+  crypto: ^3.0.7
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  plugin:
+    platforms:
+      macos:
+        default_package: image_editor_macos
+      windows:
+        default_package: image_editor_windows

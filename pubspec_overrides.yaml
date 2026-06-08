@@ -1,0 +1,7 @@
+dependency_overrides:
+  image_editor_platform_interface:
+    path: /Users/chaoren/kwikwicommon/image_editor/image_editor_platform_interface
+  image_editor_macos:
+    path: /Users/chaoren/kwikwicommon/image_editor/image_editor_macos
+  image_editor_windows:
+    path: /Users/chaoren/kwikwicommon/image_editor/image_editor_windows

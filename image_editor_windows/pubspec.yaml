@@ -1,0 +1,26 @@
+name: image_editor_windows
+description: Windows implementation of the image_editor federated plugin.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_editor_platform_interface:
+    path: ../image_editor_platform_interface
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    implements: image_editor
+    platforms:
+      windows:
+        pluginClass: ImageEditorWindowsPluginCApi
+        dartPluginClass: ImageEditorWindows
