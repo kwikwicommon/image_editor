@@ -3,6 +3,7 @@ enum AnnotateTool {
   arrow,
   rectangle,
   ellipse,
+  line,
   text,
   pencil,
   highlighter,
@@ -12,6 +13,9 @@ enum AnnotateTool {
   eraser,
   crop,
   sticker,
+  fill,
+  colorPicker,
+  solidRedaction,
 }
 
 class ImageEditorTools {
@@ -20,6 +24,7 @@ class ImageEditorTools {
     AnnotateTool.arrow,
     AnnotateTool.rectangle,
     AnnotateTool.ellipse,
+    AnnotateTool.line,
     AnnotateTool.text,
     AnnotateTool.pencil,
     AnnotateTool.highlighter,
@@ -29,6 +34,26 @@ class ImageEditorTools {
     AnnotateTool.eraser,
     AnnotateTool.crop,
     AnnotateTool.sticker,
+    AnnotateTool.fill,
+    AnnotateTool.colorPicker,
+    AnnotateTool.solidRedaction,
+  });
+
+  static const ImageEditorTools goodImageV1 = ImageEditorTools({
+    AnnotateTool.select,
+    AnnotateTool.arrow,
+    AnnotateTool.rectangle,
+    AnnotateTool.ellipse,
+    AnnotateTool.line,
+    AnnotateTool.text,
+    AnnotateTool.pencil,
+    AnnotateTool.highlighter,
+    AnnotateTool.blur,
+    AnnotateTool.counter,
+    AnnotateTool.eraser,
+    AnnotateTool.crop,
+    AnnotateTool.colorPicker,
+    AnnotateTool.solidRedaction,
   });
 
   final Set<AnnotateTool> enabled;

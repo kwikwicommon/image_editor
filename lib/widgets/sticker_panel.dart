@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:get/get.dart';
 
 import '../src/core/image_editor_localizations.dart';
 import '../src/stickers/sticker_asset.dart';
@@ -42,72 +41,80 @@ class StickerPanel extends StatelessWidget {
                 onChanged: controller.setSearchQuery,
               ),
             ),
-            Obx(() {
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    for (final category in StickerCategory.values)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: IconButton(
-                          tooltip: localizations.text(category.labelKey),
-                          isSelected:
-                              controller.selectedCategory.value == category,
-                          icon: Icon(category.icon),
-                          onPressed: () => controller.selectCategory(category),
+            ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      for (final category in StickerCategory.values)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: IconButton(
+                            tooltip: localizations.text(category.labelKey),
+                            isSelected:
+                                controller.selectedCategory.value == category,
+                            icon: Icon(category.icon),
+                            onPressed: () =>
+                                controller.selectCategory(category),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              );
-            }),
+                    ],
+                  ),
+                );
+              },
+            ),
             const Divider(height: 1),
             Expanded(
-              child: Obx(() {
-                final stickers = controller.filteredStickers;
-                if (stickers.isEmpty) {
-                  return Center(
-                    child: Text(localizations.text('stickers.noResults')),
+              child: ListenableBuilder(
+                listenable: controller,
+                builder: (context, _) {
+                  final stickers = controller.filteredStickers;
+                  if (stickers.isEmpty) {
+                    return Center(
+                      child: Text(localizations.text('stickers.noResults')),
+                    );
+                  }
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(12),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                        ),
+                    itemCount: stickers.length,
+                    itemBuilder: (context, index) {
+                      final sticker = stickers[index];
+                      final isFavorite = controller.favoriteIds.contains(
+                        sticker.id,
+                      );
+                      return _StickerTile(
+                        sticker: sticker,
+                        isFavorite: isFavorite,
+                        localizations: localizations,
+                        onFavorite: () {
+                          unawaited(
+                            controller
+                                .toggleFavorite(sticker.id)
+                                .catchError((Object _) {}),
+                          );
+                        },
+                        onInsert: () {
+                          unawaited(
+                            controller
+                                .addRecent(sticker.id)
+                                .catchError((Object _) {}),
+                          );
+                          onStickerInserted(sticker);
+                        },
+                      );
+                    },
                   );
-                }
-                return GridView.builder(
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                  ),
-                  itemCount: stickers.length,
-                  itemBuilder: (context, index) {
-                    final sticker = stickers[index];
-                    final isFavorite = controller.favoriteIds.contains(
-                      sticker.id,
-                    );
-                    return _StickerTile(
-                      sticker: sticker,
-                      isFavorite: isFavorite,
-                      localizations: localizations,
-                      onFavorite: () {
-                        unawaited(
-                          controller
-                              .toggleFavorite(sticker.id)
-                              .catchError((Object _) {}),
-                        );
-                      },
-                      onInsert: () {
-                        unawaited(
-                          controller
-                              .addRecent(sticker.id)
-                              .catchError((Object _) {}),
-                        );
-                        onStickerInserted(sticker);
-                      },
-                    );
-                  },
-                );
-              }),
+                },
+              ),
             ),
           ],
         ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import '../src/background/background_controller.dart';
 import '../src/background/background_state.dart';
@@ -21,110 +20,113 @@ class BackgroundEditor extends StatelessWidget {
       color: Theme.of(context).colorScheme.surface,
       child: SizedBox(
         width: 280,
-        child: Obx(() {
-          final state = controller.state.value;
-          return ListView(
-            padding: const EdgeInsets.all(12),
-            children: [
-              Text(
-                localizations.text('background.title'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SegmentedButton<BackgroundType>(
-                  segments: [
-                    ButtonSegment(
-                      value: BackgroundType.none,
-                      icon: const Icon(Icons.block_rounded),
-                      label: Text(localizations.text('background.none')),
-                    ),
-                    ButtonSegment(
-                      value: BackgroundType.gradient,
-                      icon: const Icon(Icons.gradient_rounded),
-                      label: Text(localizations.text('background.gradient')),
-                    ),
-                    ButtonSegment(
-                      value: BackgroundType.solid,
-                      icon: const Icon(Icons.format_color_fill_rounded),
-                      label: Text(localizations.text('background.solid')),
-                    ),
-                    ButtonSegment(
-                      value: BackgroundType.image,
-                      icon: const Icon(Icons.image_outlined),
-                      label: Text(localizations.text('background.image')),
-                    ),
-                    ButtonSegment(
-                      value: BackgroundType.pattern,
-                      icon: const Icon(Icons.grid_on_rounded),
-                      label: Text(localizations.text('background.pattern')),
-                    ),
-                  ],
-                  selected: {state.type},
-                  onSelectionChanged: (selection) {
-                    controller.setType(selection.first);
-                  },
-                  showSelectedIcon: false,
+        child: ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) {
+            final state = controller.state.value;
+            return ListView(
+              padding: const EdgeInsets.all(12),
+              children: [
+                Text(
+                  localizations.text('background.title'),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              ),
-              const SizedBox(height: 16),
-              if (state.type == BackgroundType.gradient)
-                _GradientPicker(controller: controller, state: state),
-              if (state.type == BackgroundType.solid)
-                _ColorPicker(
-                  colors: const [
-                    Color(0xFFFFFFFF),
-                    Color(0xFFF3F4F6),
-                    Color(0xFF111827),
-                    Color(0xFF2563EB),
-                    Color(0xFF16A34A),
-                  ],
-                  selected: state.solidColor,
-                  onSelected: controller.setSolidColor,
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedButton<BackgroundType>(
+                    segments: [
+                      ButtonSegment(
+                        value: BackgroundType.none,
+                        icon: const Icon(Icons.block_rounded),
+                        label: Text(localizations.text('background.none')),
+                      ),
+                      ButtonSegment(
+                        value: BackgroundType.gradient,
+                        icon: const Icon(Icons.gradient_rounded),
+                        label: Text(localizations.text('background.gradient')),
+                      ),
+                      ButtonSegment(
+                        value: BackgroundType.solid,
+                        icon: const Icon(Icons.format_color_fill_rounded),
+                        label: Text(localizations.text('background.solid')),
+                      ),
+                      ButtonSegment(
+                        value: BackgroundType.image,
+                        icon: const Icon(Icons.image_outlined),
+                        label: Text(localizations.text('background.image')),
+                      ),
+                      ButtonSegment(
+                        value: BackgroundType.pattern,
+                        icon: const Icon(Icons.grid_on_rounded),
+                        label: Text(localizations.text('background.pattern')),
+                      ),
+                    ],
+                    selected: {state.type},
+                    onSelectionChanged: (selection) {
+                      controller.setType(selection.first);
+                    },
+                    showSelectedIcon: false,
+                  ),
                 ),
-              if (state.type == BackgroundType.image)
-                _ImageBackgroundInfo(
-                  hasImage: state.customImageBytes != null,
-                  localizations: localizations,
-                  onClear: controller.clearCustomImage,
+                const SizedBox(height: 16),
+                if (state.type == BackgroundType.gradient)
+                  _GradientPicker(controller: controller, state: state),
+                if (state.type == BackgroundType.solid)
+                  _ColorPicker(
+                    colors: const [
+                      Color(0xFFFFFFFF),
+                      Color(0xFFF3F4F6),
+                      Color(0xFF111827),
+                      Color(0xFF2563EB),
+                      Color(0xFF16A34A),
+                    ],
+                    selected: state.solidColor,
+                    onSelected: controller.setSolidColor,
+                  ),
+                if (state.type == BackgroundType.image)
+                  _ImageBackgroundInfo(
+                    hasImage: state.customImageBytes != null,
+                    localizations: localizations,
+                    onClear: controller.clearCustomImage,
+                  ),
+                if (state.type == BackgroundType.pattern)
+                  _PatternPicker(
+                    controller: controller,
+                    state: state,
+                    localizations: localizations,
+                  ),
+                _SliderRow(
+                  label: localizations.text('background.padding'),
+                  value: state.padding,
+                  min: BackgroundState.minPadding,
+                  max: 160,
+                  onChanged: controller.setPadding,
                 ),
-              if (state.type == BackgroundType.pattern)
-                _PatternPicker(
-                  controller: controller,
-                  state: state,
-                  localizations: localizations,
+                _SliderRow(
+                  label: localizations.text('background.radius'),
+                  value: state.cornerRadius,
+                  min: BackgroundState.minCornerRadius,
+                  max: 80,
+                  onChanged: controller.setCornerRadius,
                 ),
-              _SliderRow(
-                label: localizations.text('background.padding'),
-                value: state.padding,
-                min: BackgroundState.minPadding,
-                max: 160,
-                onChanged: controller.setPadding,
-              ),
-              _SliderRow(
-                label: localizations.text('background.radius'),
-                value: state.cornerRadius,
-                min: BackgroundState.minCornerRadius,
-                max: 80,
-                onChanged: controller.setCornerRadius,
-              ),
-              _SliderRow(
-                label: localizations.text('background.shadow'),
-                value: state.shadowBlur,
-                min: BackgroundState.minShadowBlur,
-                max: 80,
-                onChanged: controller.setShadowBlur,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(localizations.text('background.titleBar')),
-                value: state.showTitleBar,
-                onChanged: controller.setShowTitleBar,
-              ),
-            ],
-          );
-        }),
+                _SliderRow(
+                  label: localizations.text('background.shadow'),
+                  value: state.shadowBlur,
+                  min: BackgroundState.minShadowBlur,
+                  max: 80,
+                  onChanged: controller.setShadowBlur,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(localizations.text('background.titleBar')),
+                  value: state.showTitleBar,
+                  onChanged: controller.setShowTitleBar,
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -205,9 +207,7 @@ class _ImageBackgroundInfo extends StatelessWidget {
         Expanded(
           child: Text(
             localizations.text(
-              hasImage
-                  ? 'background.imageSelected'
-                  : 'background.imageMissing',
+              hasImage ? 'background.imageSelected' : 'background.imageMissing',
             ),
             style: Theme.of(context).textTheme.bodySmall,
             overflow: TextOverflow.ellipsis,

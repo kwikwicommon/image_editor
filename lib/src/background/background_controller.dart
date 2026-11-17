@@ -1,12 +1,27 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import 'background_state.dart';
 
-class BackgroundController extends GetxController {
-  final state = const BackgroundState().obs;
+class BackgroundController extends ChangeNotifier {
+  @override
+  void dispose() {
+    for (final value in _values) {
+      value.dispose();
+    }
+    super.dispose();
+  }
+
+  BackgroundController() {
+    for (final value in _values) {
+      value.addListener(notifyListeners);
+    }
+  }
+
+  late final List<ChangeNotifier> _values = [state];
+
+  final state = ValueNotifier(const BackgroundState());
 
   void setType(BackgroundType type) {
     state.value = state.value.copyWith(type: type);

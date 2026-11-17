@@ -229,9 +229,10 @@ class InlineResourceStore {
     return InlineResourceStore(
       resources: list
           .whereType<Map>()
-          .map((item) => InlineStoredResource.fromJson(
-                Map<String, dynamic>.from(item),
-              ))
+          .map(
+            (item) =>
+                InlineStoredResource.fromJson(Map<String, dynamic>.from(item)),
+          )
           .where((resource) => resource.id.isNotEmpty)
           .toList(),
     );

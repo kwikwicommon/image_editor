@@ -4,8 +4,12 @@ enum CropAspectRatio {
   free(null),
   square(1),
   r16x9(16 / 9),
+  r9x16(9 / 16),
   r4x3(4 / 3),
-  r3x2(3 / 2);
+  r3x4(3 / 4),
+  r3x2(3 / 2),
+  r2x3(2 / 3),
+  r21x9(21 / 9);
 
   final double? ratio;
 
@@ -17,6 +21,9 @@ class CropTool extends StatefulWidget {
   final CropAspectRatio aspectRatio;
   final ValueChanged<Rect>? onChanged;
   final ValueChanged<Rect>? onSubmitted;
+  final VoidCallback? onCancelled;
+  final double minWidth;
+  final double minHeight;
 
   const CropTool({
     super.key,
@@ -24,6 +31,9 @@ class CropTool extends StatefulWidget {
     this.aspectRatio = CropAspectRatio.free,
     this.onChanged,
     this.onSubmitted,
+    this.onCancelled,
+    this.minWidth = 10,
+    this.minHeight = 10,
   });
 
   @override
@@ -65,9 +75,11 @@ class _CropToolState extends State<CropTool> {
           onPanEnd: (_) {
             final selection = _selection;
             if (selection != null &&
-                selection.width >= 1 &&
-                selection.height >= 1) {
+                selection.width >= widget.minWidth &&
+                selection.height >= widget.minHeight) {
               widget.onSubmitted?.call(selection);
+            } else {
+              widget.onCancelled?.call();
             }
             _dragStart = null;
           },

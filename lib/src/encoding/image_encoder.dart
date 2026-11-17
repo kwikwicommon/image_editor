@@ -4,21 +4,55 @@ import 'dart:ui' as ui;
 import '../core/app_result.dart';
 import '../core/image_editor_localizations.dart';
 
-enum ImageExportFormat { png, jpeg, webp }
+enum ImageExportFormat { png, jpeg, webp, bmp }
 
 class EncodedImage {
   final Uint8List imageBytes;
   final ImageExportFormat format;
   final String extension;
   final String mimeType;
+  final EncodedImageMetadata? metadata;
 
   const EncodedImage({
     required this.imageBytes,
     required this.format,
     required this.extension,
     required this.mimeType,
+    this.metadata,
   });
 }
+
+class EncodedImageMetadata {
+  final int width;
+  final int height;
+  final int fileSize;
+  final bool hasAlpha;
+
+  const EncodedImageMetadata({
+    required this.width,
+    required this.height,
+    required this.fileSize,
+    this.hasAlpha = false,
+  });
+}
+
+class FormatCapability {
+  final ImageExportFormat format;
+  final bool supportsAlpha;
+  final bool supportsQuality;
+  final int minQuality;
+  final int maxQuality;
+
+  const FormatCapability({
+    required this.format,
+    this.supportsAlpha = false,
+    this.supportsQuality = false,
+    this.minQuality = 1,
+    this.maxQuality = 100,
+  });
+}
+
+typedef CancelToken = bool Function();
 
 abstract class ImageEncoderPlatform {
   const ImageEncoderPlatform();
@@ -27,7 +61,14 @@ abstract class ImageEncoderPlatform {
     required Uint8List imageBytes,
     required ImageExportFormat format,
     required int quality,
+    CancelToken? cancelToken,
   });
+
+  Set<ImageExportFormat> get supportedFormats => {
+    ImageExportFormat.png,
+    ImageExportFormat.jpeg,
+    ImageExportFormat.webp,
+  };
 }
 
 class ImageEncoder {
@@ -39,10 +80,47 @@ class ImageEncoder {
     this.localizations = const DefaultImageEditorLocalizations(),
   });
 
+  static const Map<ImageExportFormat, FormatCapability> formatCapabilities = {
+    ImageExportFormat.png: FormatCapability(
+      format: ImageExportFormat.png,
+      supportsAlpha: true,
+      supportsQuality: false,
+    ),
+    ImageExportFormat.jpeg: FormatCapability(
+      format: ImageExportFormat.jpeg,
+      supportsAlpha: false,
+      supportsQuality: true,
+      minQuality: 1,
+      maxQuality: 100,
+    ),
+    ImageExportFormat.webp: FormatCapability(
+      format: ImageExportFormat.webp,
+      supportsAlpha: true,
+      supportsQuality: true,
+      minQuality: 1,
+      maxQuality: 100,
+    ),
+    ImageExportFormat.bmp: FormatCapability(
+      format: ImageExportFormat.bmp,
+      supportsAlpha: false,
+      supportsQuality: false,
+    ),
+  };
+
+  FormatCapability? capabilityFor(ImageExportFormat format) {
+    return formatCapabilities[format];
+  }
+
+  Set<ImageExportFormat> get supportedFormats {
+    final platformFormats = platform?.supportedFormats ?? const {};
+    return {ImageExportFormat.png, ...platformFormats};
+  }
+
   Future<AppResult<EncodedImage>> encode({
     required Uint8List imageBytes,
     required ImageExportFormat format,
     int quality = 90,
+    CancelToken? cancelToken,
   }) async {
     final AppResult<EncodedImage>? fallbackFailure;
     if (format == ImageExportFormat.png) {
@@ -167,6 +245,8 @@ class ImageEncoder {
         return 'jpeg';
       case ImageExportFormat.webp:
         return 'webp';
+      case ImageExportFormat.bmp:
+        return 'bmp';
     }
   }
 
@@ -178,6 +258,8 @@ class ImageEncoder {
         return 'image/jpeg';
       case ImageExportFormat.webp:
         return 'image/webp';
+      case ImageExportFormat.bmp:
+        return 'image/bmp';
     }
   }
 

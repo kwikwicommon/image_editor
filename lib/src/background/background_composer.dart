@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../core/app_result.dart';
 import '../core/image_editor_localizations.dart';
-import 'background_state.dart';
 import 'background_layout.dart';
+import 'background_state.dart';
 import 'image_background_placeholder_painter.dart';
 import 'pattern_painter.dart';
 
@@ -44,6 +44,31 @@ class _OutputBudgetMetrics {
     required this.outputWidth,
     required this.outputHeight,
   });
+}
+
+enum CompositionOutputFormat { png, rawRgba }
+
+class CompositionMetadata {
+  final int outputWidth;
+  final int outputHeight;
+  final double pixelRatio;
+  final CompositionOutputFormat format;
+
+  const CompositionMetadata({
+    required this.outputWidth,
+    required this.outputHeight,
+    required this.pixelRatio,
+    required this.format,
+  });
+
+  int get pixelCount => outputWidth * outputHeight;
+}
+
+class CompositionResult {
+  final Uint8List bytes;
+  final CompositionMetadata metadata;
+
+  const CompositionResult({required this.bytes, required this.metadata});
 }
 
 class BackgroundComposer {
@@ -212,6 +237,63 @@ class BackgroundComposer {
       sourceImage?.dispose();
       customBackgroundImage?.dispose();
     }
+  }
+
+  static Future<AppResult<CompositionResult>> composeWithMetadata({
+    required Uint8List imageBytes,
+    required Size imageSize,
+    required BackgroundState backgroundState,
+    required AnnotationPaintCallback paintAnnotations,
+    double pixelRatio = 1,
+    CompositionOutputFormat format = CompositionOutputFormat.png,
+    BackgroundCompositionBudget budget = defaultBudget,
+    ImageEditorLocalizations localizations =
+        const DefaultImageEditorLocalizations(),
+  }) async {
+    final result = await compose(
+      imageBytes: imageBytes,
+      imageSize: imageSize,
+      backgroundState: backgroundState,
+      paintAnnotations: paintAnnotations,
+      pixelRatio: pixelRatio,
+      budget: budget,
+      localizations: localizations,
+    );
+    if (result.isFailure) {
+      return AppResult.failure(result.requireFailure);
+    }
+    final scaledWidth = (imageSize.width * pixelRatio).round();
+    final scaledHeight = (imageSize.height * pixelRatio).round();
+    return AppResult.success(CompositionResult(
+      bytes: result.requireValue,
+      metadata: CompositionMetadata(
+        outputWidth: scaledWidth > 0 ? scaledWidth : 1,
+        outputHeight: scaledHeight > 0 ? scaledHeight : 1,
+        pixelRatio: pixelRatio,
+        format: format,
+      ),
+    ));
+  }
+
+  static Future<AppResult<CompositionResult>> composeRgba({
+    required Uint8List imageBytes,
+    required Size imageSize,
+    required AnnotationPaintCallback paintAnnotations,
+    double pixelRatio = 1,
+    BackgroundCompositionBudget budget = defaultBudget,
+    ImageEditorLocalizations localizations =
+        const DefaultImageEditorLocalizations(),
+  }) async {
+    return composeWithMetadata(
+      imageBytes: imageBytes,
+      imageSize: imageSize,
+      backgroundState: const BackgroundState(),
+      paintAnnotations: paintAnnotations,
+      pixelRatio: pixelRatio,
+      format: CompositionOutputFormat.rawRgba,
+      budget: budget,
+      localizations: localizations,
+    );
   }
 
   @Deprecated('Use compose for structured failure details.')

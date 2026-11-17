@@ -24,13 +24,15 @@ dependencies:
       url: https://github.com/kwikwicommon/image_editor.git
       ref: main
       path: image_editor_windows
-  get: ^4.7.3
-  flutter_svg: ^2.2.3
-  uuid: ^4.5.2
+  flutter_svg: ^2.3.0
+  uuid: ^4.5.3
   crypto: ^3.0.7
   path: ^1.9.1
 
 dev_dependencies:
+  uni_lints:
+    git:
+      url: https://github.com/kwikwicommon/uni_lints.git
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

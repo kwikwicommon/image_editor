@@ -1,4 +1,4 @@
-library image_editor;
+library;
 
 export 'package:image_editor_platform_interface/image_editor_platform_interface.dart';
 
@@ -15,7 +15,11 @@ export 'src/canvas/annotation_element.dart';
 export 'src/canvas/annotation_hit_testing.dart';
 export 'src/canvas/annotation_json.dart';
 export 'src/canvas/annotation_painter.dart';
+export 'src/canvas/annotation_schema.dart';
+export 'src/canvas/canvas_display_mode.dart';
 export 'src/core/app_result.dart';
+export 'src/core/coordinate_transform.dart';
+export 'src/core/document_adapter.dart';
 export 'src/core/image_editor_localizations.dart';
 export 'src/core/resource_store.dart';
 export 'src/core/serialization_utils.dart';

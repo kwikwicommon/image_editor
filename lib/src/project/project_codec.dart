@@ -79,6 +79,8 @@ class ProjectCodec {
           .toList(),
       'backgroundState': backgroundState,
       'backgroundSettings': backgroundSettings,
+      if (file.externalSourceRef != null)
+        'externalSourceRef': file.externalSourceRef!.toJson(),
     };
   }
 
@@ -95,14 +97,23 @@ class ProjectCodec {
   }
 
   ProjectFile decode(Map<String, dynamic> json) {
-    final version = _versionFromJson(json);
+    var version = _versionFromJson(json);
+    var workingJson = json;
+    if (version < ProjectFile.currentVersion) {
+      workingJson = ProjectSchemaMigrator.migrate(
+        json,
+        fromVersion: version,
+        toVersion: ProjectFile.currentVersion,
+      );
+      version = ProjectFile.currentVersion;
+    }
     _ensureSupportedVersion(version);
 
-    final resources = _resourcesFromJson(json['resources']);
-    final imageRefJson = json['imageRef'] is Map
-        ? Map<String, dynamic>.from(json['imageRef'] as Map)
+    final resources = _resourcesFromJson(workingJson['resources']);
+    final imageRefJson = workingJson['imageRef'] is Map
+        ? Map<String, dynamic>.from(workingJson['imageRef'] as Map)
         : <String, dynamic>{};
-    final elementsJson = json['elements'] as List<dynamic>? ?? const [];
+    final elementsJson = workingJson['elements'] as List<dynamic>? ?? const [];
     final elements = <AnnotationElement>[];
     for (final rawElement in elementsJson) {
       if (rawElement is! Map) continue;
@@ -113,7 +124,7 @@ class ProjectCodec {
     }
 
     final rawBackgroundJson =
-        json['backgroundState'] ?? json['backgroundSettings'];
+        workingJson['backgroundState'] ?? workingJson['backgroundSettings'];
     if (rawBackgroundJson != null && rawBackgroundJson is! Map) {
       throw FormatException(localizations.text('error.projectPayloadInvalid'));
     }
@@ -124,23 +135,34 @@ class ProjectCodec {
     final backgroundState = backgroundJson.isEmpty
         ? const BackgroundState()
         : BackgroundStateCodec.fromJson(backgroundJson);
-    final canvasSize = _sizeFromJson(json['canvasSize']);
+    final canvasSize = _sizeFromJson(workingJson['canvasSize']);
+
+    ExternalSourceRef? externalSourceRef;
+    final extRefJson = workingJson['externalSourceRef'];
+    if (extRefJson is Map) {
+      externalSourceRef = ExternalSourceRef.fromJson(
+        Map<String, dynamic>.from(extRefJson),
+      );
+    }
 
     return ProjectFile(
       version: version,
       createdAt:
-          DateTime.tryParse(_optionalStringFromJson(json, 'createdAt') ?? '') ??
-          DateTime.now(),
+          DateTime.tryParse(
+            _optionalStringFromJson(workingJson, 'createdAt') ?? '',
+          ) ?? DateTime.now(),
       updatedAt:
-          DateTime.tryParse(_optionalStringFromJson(json, 'updatedAt') ?? '') ??
-          DateTime.now(),
+          DateTime.tryParse(
+            _optionalStringFromJson(workingJson, 'updatedAt') ?? '',
+          ) ?? DateTime.now(),
+      externalSourceRef: externalSourceRef,
       snapshot: ProjectSnapshot(
         elements: elements,
         backgroundState: backgroundState,
         imageRef: ProjectImageRef(
           id: _optionalStringFromJson(imageRefJson, 'id') ?? 'source',
           path: _optionalStringFromJson(imageRefJson, 'path'),
-          bytes: _imageBytesFromJson(json, imageRefJson, resources),
+          bytes: _imageBytesFromJson(workingJson, imageRefJson, resources),
           size: _sizeFromJson(imageRefJson['size']) ?? canvasSize,
         ),
       ),
@@ -369,7 +391,7 @@ class ProjectCodec {
     required int reservedBytes,
   }) {
     final rawId = json['id'];
-    final id = rawId == null ? mapId : rawId;
+    final id = rawId ?? mapId;
     if (id is! String || id.isEmpty || (mapId != null && id != mapId)) {
       throw FormatException(localizations.text('error.projectPayloadInvalid'));
     }

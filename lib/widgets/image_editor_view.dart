@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import '../src/background/background_composer.dart';
 import '../src/background/background_controller.dart';
@@ -82,7 +81,7 @@ class _ImageEditorViewState extends State<ImageEditorView> {
   late bool _ownsBackgroundController;
   late bool _ownsStickerLibraryController;
   late bool _ownsStickerRenderCache;
-  final List<Worker> _changeWorkers = [];
+  AnnotationController? _observedController;
   var _isLoadingInitialState = false;
   var _isExporting = false;
 
@@ -224,20 +223,23 @@ class _ImageEditorViewState extends State<ImageEditorView> {
                     ),
                   ),
                 ),
-                Obx(() {
-                  final tool = _annotationController.currentTool.value;
-                  if (tool == AnnotateTool.sticker) {
-                    return StickerPanel(
-                      controller: _stickerLibraryController,
+                ListenableBuilder(
+                  listenable: _annotationController,
+                  builder: (context, _) {
+                    final tool = _annotationController.currentTool.value;
+                    if (tool == AnnotateTool.sticker) {
+                      return StickerPanel(
+                        controller: _stickerLibraryController,
+                        localizations: widget.localizations,
+                        onStickerInserted: _insertSticker,
+                      );
+                    }
+                    return BackgroundEditor(
+                      controller: _backgroundController,
                       localizations: widget.localizations,
-                      onStickerInserted: _insertSticker,
                     );
-                  }
-                  return BackgroundEditor(
-                    controller: _backgroundController,
-                    localizations: widget.localizations,
-                  );
-                }),
+                  },
+                ),
               ],
             ),
           ),
@@ -400,25 +402,24 @@ class _ImageEditorViewState extends State<ImageEditorView> {
   void _attachChangeWorkers() {
     _disposeChangeWorkers();
     if (widget.onChanged == null) return;
-    _changeWorkers.add(
-      ever<List<AnnotationElement>>(_annotationController.elements, (_) {
-        if (!_isLoadingInitialState && mounted) {
-          widget.onChanged?.call(_annotationController);
-        }
-      }),
-    );
+    _observedController = _annotationController;
+    _observedController!.addListener(_notifyAnnotationChanged);
+  }
+
+  void _notifyAnnotationChanged() {
+    if (!_isLoadingInitialState && mounted) {
+      widget.onChanged?.call(_annotationController);
+    }
   }
 
   void _disposeChangeWorkers() {
-    for (final worker in _changeWorkers) {
-      worker.dispose();
-    }
-    _changeWorkers.clear();
+    _observedController?.removeListener(_notifyAnnotationChanged);
+    _observedController = null;
   }
 
-  void _disposeOwnedController(GetxController controller, bool ownsController) {
-    if (!ownsController || controller.isClosed) return;
-    controller.onDelete();
+  void _disposeOwnedController(ChangeNotifier controller, bool ownsController) {
+    if (!ownsController) return;
+    controller.dispose();
   }
 }
 

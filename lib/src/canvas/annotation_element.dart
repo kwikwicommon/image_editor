@@ -94,7 +94,7 @@ Offset _arrowGeometryAnchor(
   Offset endPoint,
   Offset? controlPoint,
 ) {
-  final points = [startPoint, endPoint, if (controlPoint != null) controlPoint];
+  final points = [startPoint, endPoint, ?controlPoint];
   return _pointsGeometryAnchor(points);
 }
 
@@ -163,7 +163,7 @@ class ArrowElement extends AnnotationElement {
   final bool isDashed;
 
   ArrowElement({
-    String? id,
+    super.id,
     required this.startPoint,
     required this.endPoint,
     this.controlPoint,
@@ -172,19 +172,13 @@ class ArrowElement extends AnnotationElement {
     this.headStyle = ArrowHeadStyle.filled,
     this.arrowType = ArrowType.straight,
     this.isDashed = false,
-    double rotation = 0,
-    double scale = 1.0,
-    int zIndex = 0,
-    bool isLocked = false,
-    bool isVisible = true,
+    super.rotation,
+    super.scale,
+    super.zIndex,
+    super.isLocked,
+    super.isVisible,
   }) : super(
-         id: id,
          position: _arrowGeometryAnchor(startPoint, endPoint, controlPoint),
-         rotation: rotation,
-         scale: scale,
-         zIndex: zIndex,
-         isLocked: isLocked,
-         isVisible: isVisible,
        );
 
   @override
@@ -192,7 +186,7 @@ class ArrowElement extends AnnotationElement {
     final bounds = _pointsGeometryBounds([
       startPoint,
       endPoint,
-      if (controlPoint != null) controlPoint!,
+      ?controlPoint,
     ]);
     return bounds.inflate(strokeWidth + 14);
   }
@@ -250,7 +244,7 @@ class ShapeElement extends AnnotationElement {
   final bool isDashed;
 
   ShapeElement({
-    String? id,
+    super.id,
     required this.rect,
     this.strokeColor = Colors.red,
     this.fillColor,
@@ -258,19 +252,13 @@ class ShapeElement extends AnnotationElement {
     this.cornerRadius = 0,
     this.shapeType = ShapeType.rectangle,
     this.isDashed = false,
-    double rotation = 0,
-    double scale = 1.0,
-    int zIndex = 0,
-    bool isLocked = false,
-    bool isVisible = true,
+    super.rotation,
+    super.scale,
+    super.zIndex,
+    super.isLocked,
+    super.isVisible,
   }) : super(
-         id: id,
          position: _rectGeometryAnchor(rect),
-         rotation: rotation,
-         scale: scale,
-         zIndex: zIndex,
-         isLocked: isLocked,
-         isVisible: isVisible,
        );
 
   @override
@@ -326,6 +314,8 @@ class TextAnnotation extends AnnotationElement {
   final Color? backgroundColor;
   final TextStyle? style;
   final double maxWidth;
+  final String? fontFamily;
+  final TextAlign textAlign;
 
   TextAnnotation({
     super.id,
@@ -337,6 +327,8 @@ class TextAnnotation extends AnnotationElement {
     this.backgroundColor,
     this.style,
     this.maxWidth = 300,
+    this.fontFamily,
+    this.textAlign = TextAlign.left,
     super.rotation,
     super.scale,
     super.zIndex,
@@ -368,6 +360,35 @@ class TextAnnotation extends AnnotationElement {
   AnnotationElement clone({bool preserveId = true}) =>
       translated(Offset.zero, preserveId: preserveId);
 
+  TextAnnotation copyWith({
+    String? text,
+    Color? textColor,
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? backgroundColor,
+    TextStyle? style,
+    double? maxWidth,
+    String? fontFamily,
+    TextAlign? textAlign,
+  }) => TextAnnotation(
+    id: id,
+    text: text ?? this.text,
+    position: position,
+    textColor: textColor ?? this.textColor,
+    fontSize: fontSize ?? this.fontSize,
+    fontWeight: fontWeight ?? this.fontWeight,
+    backgroundColor: backgroundColor ?? this.backgroundColor,
+    style: style ?? this.style,
+    maxWidth: maxWidth ?? this.maxWidth,
+    fontFamily: fontFamily ?? this.fontFamily,
+    textAlign: textAlign ?? this.textAlign,
+    rotation: rotation,
+    scale: scale,
+    zIndex: zIndex,
+    isLocked: isLocked,
+    isVisible: isVisible,
+  );
+
   @override
   AnnotationElement translated(
     Offset offset, {
@@ -383,6 +404,8 @@ class TextAnnotation extends AnnotationElement {
     backgroundColor: backgroundColor,
     style: style,
     maxWidth: maxWidth,
+    fontFamily: fontFamily,
+    textAlign: textAlign,
     rotation: rotation,
     scale: scale,
     zIndex: zIndex ?? this.zIndex,
@@ -400,27 +423,29 @@ class FreeDrawElement extends AnnotationElement {
   final Color color;
   final double strokeWidth;
   final bool isHighlighter;
+  final bool pressureEnabled;
+  final double minStrokeWidth;
+  final double maxStrokeWidth;
+  final List<double>? pressureValues;
 
   FreeDrawElement({
-    String? id,
+    super.id,
     required List<Offset> points,
     this.color = Colors.red,
     this.strokeWidth = 2.0,
     this.isHighlighter = false,
-    double rotation = 0,
-    double scale = 1.0,
-    int zIndex = 0,
-    bool isLocked = false,
-    bool isVisible = true,
+    this.pressureEnabled = false,
+    this.minStrokeWidth = 0.5,
+    this.maxStrokeWidth = 0,
+    this.pressureValues,
+    super.rotation,
+    super.scale,
+    super.zIndex,
+    super.isLocked,
+    super.isVisible,
   }) : points = List.unmodifiable(points),
        super(
-         id: id,
          position: _pointsGeometryAnchor(points),
-         rotation: rotation,
-         scale: scale,
-         zIndex: zIndex,
-         isLocked: isLocked,
-         isVisible: isVisible,
        );
 
   @override
@@ -464,6 +489,10 @@ class FreeDrawElement extends AnnotationElement {
     color: color,
     strokeWidth: strokeWidth,
     isHighlighter: isHighlighter,
+    pressureEnabled: pressureEnabled,
+    minStrokeWidth: minStrokeWidth,
+    maxStrokeWidth: maxStrokeWidth,
+    pressureValues: pressureValues,
     rotation: rotation,
     scale: scale,
     zIndex: zIndex ?? this.zIndex,
@@ -475,31 +504,34 @@ class FreeDrawElement extends AnnotationElement {
   Map<String, dynamic> toJson() => AnnotationElementJson.toJson(this);
 }
 
-/// Blur/mosaic element
+/// Blur/mosaic element — semantics: describes a mask region over the source
+/// image. The actual pixel effect (gaussian blur, pixelation, solid fill) is
+/// applied by the host render engine at export time using the real source
+/// pixels. The canvas only draws a visual approximation for preview.
 class BlurElement extends AnnotationElement {
   final Rect rect;
   final BlurMode blurMode;
   final double intensity;
+  final List<Offset>? maskPoints;
 
   BlurElement({
-    String? id,
+    super.id,
     required this.rect,
     this.blurMode = BlurMode.mosaic,
     this.intensity = 10,
-    double rotation = 0,
-    double scale = 1.0,
-    int zIndex = 0,
-    bool isLocked = false,
-    bool isVisible = true,
+    this.maskPoints,
+    super.rotation,
+    super.scale,
+    super.zIndex,
+    super.isLocked,
+    super.isVisible,
   }) : super(
-         id: id,
          position: _rectGeometryAnchor(rect),
-         rotation: rotation,
-         scale: scale,
-         zIndex: zIndex,
-         isLocked: isLocked,
-         isVisible: isVisible,
        );
+
+  Rect get effectRegion => rect;
+
+  bool get isBrushMask => maskPoints != null && maskPoints!.isNotEmpty;
 
   @override
   Rect get geometryBounds => rect;
@@ -610,6 +642,7 @@ class BlurElement extends AnnotationElement {
     rect: rect.shift(offset),
     blurMode: blurMode,
     intensity: intensity,
+    maskPoints: maskPoints?.map((p) => p + offset).toList(),
     rotation: rotation,
     scale: scale,
     zIndex: zIndex ?? this.zIndex,
@@ -702,7 +735,7 @@ class StickerElement extends AnnotationElement {
   final bool isFlippedV;
 
   StickerElement({
-    String? id,
+    super.id,
     this.stickerId,
     this.name,
     required this.assetPath,
@@ -716,19 +749,13 @@ class StickerElement extends AnnotationElement {
     this.isRecolorable = true,
     this.isFlippedH = false,
     this.isFlippedV = false,
-    double rotation = 0,
-    double scale = 1.0,
-    int zIndex = 0,
-    bool isLocked = false,
-    bool isVisible = true,
+    super.rotation,
+    super.scale,
+    super.zIndex,
+    super.isLocked,
+    super.isVisible,
   }) : super(
-         id: id,
          position: _rectGeometryAnchor(rect),
-         rotation: rotation,
-         scale: scale,
-         zIndex: zIndex,
-         isLocked: isLocked,
-         isVisible: isVisible,
        );
 
   @override

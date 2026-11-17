@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:get/get.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
 import 'built_in_stickers.dart';
@@ -35,13 +35,29 @@ class MemoryStickerStorageAdapter extends StickerStorageAdapter {
   }
 }
 
-class StickerLibraryController extends GetxController {
-  final selectedCategory = StickerCategory.arrows.obs;
-  final searchQuery = ''.obs;
-  final recentIds = <String>[].obs;
-  final favoriteIds = <String>{}.obs;
-  final customGroups = <CustomStickerGroup>[].obs;
-  final customStickers = <StickerAsset>[].obs;
+class StickerLibraryController extends ChangeNotifier {
+  @override
+  void dispose() {
+    for (final value in _values) {
+      value.dispose();
+    }
+    super.dispose();
+  }
+
+  StickerLibraryController() {
+    for (final value in _values) {
+      value.addListener(notifyListeners);
+    }
+  }
+
+  late final List<ChangeNotifier> _values = [selectedCategory, searchQuery];
+
+  final selectedCategory = ValueNotifier(StickerCategory.arrows);
+  final searchQuery = ValueNotifier('');
+  final recentIds = <String>[];
+  final favoriteIds = <String>{};
+  final customGroups = <CustomStickerGroup>[];
+  final customStickers = <StickerAsset>[];
 
   StickerStorageAdapter _storage = MemoryStickerStorageAdapter();
   bool _isHydrating = false;
@@ -134,28 +150,35 @@ class StickerLibraryController extends GetxController {
 
   Future<void> addFavorite(String id) async {
     if (!favoriteIds.add(id)) return;
+    notifyListeners();
     await _persist();
   }
 
   Future<void> removeFavorite(String id) async {
     if (!favoriteIds.remove(id)) return;
+    notifyListeners();
     await _persist();
   }
 
   Future<void> toggleFavorite(String id) async {
     if (favoriteIds.contains(id)) {
       favoriteIds.remove(id);
+      notifyListeners();
     } else {
       favoriteIds.add(id);
+      notifyListeners();
     }
     await _persist();
   }
 
   Future<void> addRecent(String id) async {
     recentIds.remove(id);
+    notifyListeners();
     recentIds.insert(0, id);
+    notifyListeners();
     if (recentIds.length > 20) {
       recentIds.removeRange(20, recentIds.length);
+      notifyListeners();
     }
     await _persist();
   }
@@ -176,8 +199,10 @@ class StickerLibraryController extends GetxController {
     );
     if (existingIndex == -1) {
       customStickers.add(sticker);
+      notifyListeners();
     } else {
       customStickers[existingIndex] = sticker;
+      notifyListeners();
     }
     if (effectiveGroupId != null) {
       _addStickerToGroupInMemory(effectiveGroupId, sticker.id);
@@ -256,6 +281,7 @@ class StickerLibraryController extends GetxController {
       createdAt: DateTime.now(),
     );
     customGroups.add(group);
+    notifyListeners();
     await _persist();
     return group;
   }
@@ -266,15 +292,18 @@ class StickerLibraryController extends GetxController {
     final normalizedName = newName.trim();
     if (normalizedName.isEmpty) return;
     customGroups[index] = customGroups[index].copyWith(name: normalizedName);
+    notifyListeners();
     await _persist();
   }
 
   Future<void> deleteGroup(String groupId) async {
     customGroups.removeWhere((group) => group.id == groupId);
+    notifyListeners();
     for (var index = 0; index < customStickers.length; index += 1) {
       final sticker = customStickers[index];
       if (sticker.customGroupId == groupId) {
         customStickers[index] = sticker.copyWith(clearCustomGroupId: true);
+        notifyListeners();
       }
     }
     await _persist();
@@ -294,6 +323,7 @@ class StickerLibraryController extends GetxController {
       customGroups[index] = group.copyWith(
         stickerIds: group.stickerIds.where((id) => id != stickerId).toList(),
       );
+      notifyListeners();
       changed = true;
     }
     final stickerIndex = customStickers.indexWhere(
@@ -304,6 +334,7 @@ class StickerLibraryController extends GetxController {
       customStickers[stickerIndex] = customStickers[stickerIndex].copyWith(
         clearCustomGroupId: true,
       );
+      notifyListeners();
       changed = true;
     }
     if (!changed) return;
@@ -312,8 +343,11 @@ class StickerLibraryController extends GetxController {
 
   Future<void> removeCustomSticker(String id) async {
     customStickers.removeWhere((sticker) => sticker.id == id);
+    notifyListeners();
     favoriteIds.remove(id);
+    notifyListeners();
     recentIds.remove(id);
+    notifyListeners();
     for (var index = 0; index < customGroups.length; index += 1) {
       final group = customGroups[index];
       customGroups[index] = group.copyWith(
@@ -321,6 +355,7 @@ class StickerLibraryController extends GetxController {
             .where((stickerId) => stickerId != id)
             .toList(),
       );
+      notifyListeners();
     }
     await _persist();
   }
@@ -357,6 +392,7 @@ class StickerLibraryController extends GetxController {
       );
     }
     customStickers.addAll(importedStickers);
+    notifyListeners();
     customGroups.add(
       CustomStickerGroup(
         id: groupId,
@@ -365,6 +401,7 @@ class StickerLibraryController extends GetxController {
         stickerIds: importedStickers.map((sticker) => sticker.id).toList(),
       ),
     );
+    notifyListeners();
     await _persist();
   }
 
@@ -498,6 +535,7 @@ class StickerLibraryController extends GetxController {
             .whereType<String>()
             .where(validStickerIds.contains),
       );
+    notifyListeners();
     recentIds
       ..clear()
       ..addAll(
@@ -505,10 +543,16 @@ class StickerLibraryController extends GetxController {
             .whereType<String>()
             .where(validStickerIds.contains),
       );
-    customStickers.assignAll(parsedCustomStickers);
-    customGroups.assignAll(
-      _parseCustomGroups(json['customGroups'], customStickerIds),
-    );
+    notifyListeners();
+    customStickers
+      ..clear()
+      ..addAll(parsedCustomStickers);
+    notifyListeners();
+
+    customGroups
+      ..clear()
+      ..addAll(_parseCustomGroups(json['customGroups'], customStickerIds));
+    notifyListeners();
   }
 
   List<StickerAsset> _stickersForIds(Iterable<String> ids) {
@@ -639,6 +683,7 @@ class StickerLibraryController extends GetxController {
               .where((id) => id != stickerId)
               .toList(),
         );
+        notifyListeners();
         changed = true;
       }
     }
@@ -648,12 +693,14 @@ class StickerLibraryController extends GetxController {
       customGroups[groupIndex] = group.copyWith(
         stickerIds: [...group.stickerIds, stickerId],
       );
+      notifyListeners();
       changed = true;
     }
 
     final sticker = customStickers[stickerIndex];
     if (sticker.customGroupId != groupId) {
       customStickers[stickerIndex] = sticker.copyWith(customGroupId: groupId);
+      notifyListeners();
       changed = true;
     }
     return changed;
@@ -667,6 +714,7 @@ class StickerLibraryController extends GetxController {
         customGroups[index] = group.copyWith(
           stickerIds: group.stickerIds.where((id) => id != stickerId).toList(),
         );
+        notifyListeners();
         changed = true;
       }
     }

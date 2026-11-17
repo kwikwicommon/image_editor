@@ -30,13 +30,11 @@ class StickerPack {
       author: json['author'] as String? ?? '',
       resourceMode: json['resourceMode'] as String? ?? 'inline',
       stickers:
-          (json['stickers'] as List<dynamic>?)
-              ?.map((item) {
-                return StickerAsset.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                );
-              })
-              .toList() ??
+          (json['stickers'] as List<dynamic>?)?.map((item) {
+            return StickerAsset.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            );
+          }).toList() ??
           [],
     );
   }

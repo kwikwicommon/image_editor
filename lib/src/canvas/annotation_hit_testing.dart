@@ -39,7 +39,8 @@ class AnnotationElementHitTester {
   static bool _hitTestArrow(ArrowElement element, Offset point) {
     final threshold = max(8.0, element.strokeWidth / 2 + 4);
     if (element.arrowType == ArrowType.curved) {
-      final controlPoint = element.controlPoint ?? _defaultControlPoint(element);
+      final controlPoint =
+          element.controlPoint ?? _defaultControlPoint(element);
       return _distanceToQuadratic(
             point,
             element.startPoint,
@@ -134,10 +135,7 @@ class AnnotationElementHitTester {
         ((point.dx - start.dx) * dx + (point.dy - start.dy) * dy) /
         lengthSquared;
     final clampedT = t.clamp(0.0, 1.0).toDouble();
-    final closest = Offset(
-      start.dx + clampedT * dx,
-      start.dy + clampedT * dy,
-    );
+    final closest = Offset(start.dx + clampedT * dx, start.dy + clampedT * dy);
     return (point - closest).distance;
   }
 

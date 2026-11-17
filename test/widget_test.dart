@@ -11,14 +11,14 @@ void main() {
 
   Uint8List pngBytes() => Uint8List.fromList(base64Decode(pngBase64));
 
-  testWidgets('AnnotationCanvas supports basic tap interaction', (tester) async {
+  testWidgets('AnnotationCanvas supports basic tap interaction', (
+    tester,
+  ) async {
     final controller = AnnotationController();
     controller.loadProject(
       imageBytes: pngBytes(),
       imageSize: const Size(100, 100),
-      elements: [
-        ShapeElement(rect: const Rect.fromLTWH(10, 10, 40, 40)),
-      ],
+      elements: [ShapeElement(rect: const Rect.fromLTWH(10, 10, 40, 40))],
     );
 
     await tester.pumpWidget(
@@ -45,7 +45,9 @@ void main() {
     expect(controller.selectedElementIds, isNotEmpty);
   });
 
-  testWidgets('ImageEditorView exposes save lifecycle callback', (tester) async {
+  testWidgets('ImageEditorView exposes save lifecycle callback', (
+    tester,
+  ) async {
     ProjectSnapshot? saved;
 
     await tester.pumpWidget(

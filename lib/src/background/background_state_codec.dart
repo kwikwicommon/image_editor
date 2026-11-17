@@ -24,8 +24,8 @@ class BackgroundStateCodec {
       'shadowOffsetY': normalizedState.shadowOffsetY,
       'aspectRatio': normalizedState.aspectRatio.name,
       'showTitleBar': normalizedState.showTitleBar,
-      'customImage': includeLegacyCustomImage &&
-              normalizedState.customImageBytes != null
+      'customImage':
+          includeLegacyCustomImage && normalizedState.customImageBytes != null
           ? base64Encode(normalizedState.customImageBytes!)
           : null,
       'customImageRef': customImageRef,

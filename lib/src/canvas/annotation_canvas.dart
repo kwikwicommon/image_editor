@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 
 import '../core/image_editor_localizations.dart';
 import '../stickers/sticker_render_cache.dart';
@@ -17,6 +17,9 @@ class AnnotationCanvas extends StatefulWidget {
   final AnnotationController? controller;
   final StickerRenderCache? stickerRenderCache;
   final ImageEditorLocalizations localizations;
+  final AnnotationCanvasColorPickCallback? onColorPick;
+  final AnnotationCanvasFillCallback? onFill;
+  final ValueChanged<TextAnnotation>? onTextEdit;
 
   const AnnotationCanvas({
     super.key,
@@ -25,11 +28,17 @@ class AnnotationCanvas extends StatefulWidget {
     this.controller,
     this.stickerRenderCache,
     this.localizations = const DefaultImageEditorLocalizations(),
+    this.onColorPick,
+    this.onFill,
+    this.onTextEdit,
   });
 
   @override
   State<AnnotationCanvas> createState() => _AnnotationCanvasState();
 }
+
+typedef AnnotationCanvasColorPickCallback = void Function(Offset imagePosition);
+typedef AnnotationCanvasFillCallback = void Function(Offset imagePosition);
 
 class _AnnotationCanvasState extends State<AnnotationCanvas> {
   late AnnotationController _controller;
@@ -37,6 +46,9 @@ class _AnnotationCanvasState extends State<AnnotationCanvas> {
   late bool _ownsController;
   late bool _ownsStickerRenderCache;
   final _currentFreeDrawPoints = <Offset>[];
+  Offset? _creationStart;
+  Offset? _creationEnd;
+  final _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -75,6 +87,7 @@ class _AnnotationCanvasState extends State<AnnotationCanvas> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _disposeOwnedStickerRenderCache();
     _disposeOwnedController();
     super.dispose();
@@ -82,113 +95,262 @@ class _AnnotationCanvasState extends State<AnnotationCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final currentImageBytes =
-          _controller.backgroundImage.value ?? widget.imageBytes;
-      final currentImageSize = _safeImageSize(
-        _controller.imageSize.value ?? widget.imageSize,
-      );
-      return AspectRatio(
-        aspectRatio: currentImageSize.width / currentImageSize.height,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final canvasSize = Size(
-              constraints.maxWidth,
-              constraints.maxHeight,
-            );
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (details) {
-                _handleTap(
-                  _toImagePosition(
-                    details.localPosition,
-                    canvasSize,
-                    currentImageSize,
-                  ),
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKeyEvent,
+      child: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) {
+          final currentImageBytes =
+              _controller.backgroundImage.value ?? widget.imageBytes;
+          final currentImageSize = _safeImageSize(
+            _controller.imageSize.value ?? widget.imageSize,
+          );
+          return AspectRatio(
+            aspectRatio: currentImageSize.width / currentImageSize.height,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final canvasSize = Size(
+                  constraints.maxWidth,
+                  constraints.maxHeight,
                 );
-              },
-              onPanStart: (details) {
-                _handlePanStart(
-                  _toImagePosition(
-                    details.localPosition,
-                    canvasSize,
-                    currentImageSize,
-                  ),
-                );
-              },
-              onPanUpdate: (details) {
-                _handlePanUpdate(
-                  _toImagePosition(
-                    details.localPosition,
-                    canvasSize,
-                    currentImageSize,
-                  ),
-                );
-              },
-              onPanEnd: (_) => _handlePanEnd(),
-              child: RepaintBoundary(
-                child: ClipRect(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.memory(currentImageBytes, fit: BoxFit.fill),
-                      CustomPaint(
-                        painter: AnnotationCanvasPainter(
-                          elements: _controller.elements.toList(),
-                          selectedElementIds: _controller.selectedElementIds
-                              .toSet(),
-                          alignmentGuides: _controller.alignmentGuides.toList(),
-                          stickerRenderCache: _stickerRenderCache,
-                          localizations: widget.localizations,
-                          selectionColor: Theme.of(context).colorScheme.primary,
-                          coordinateSize: currentImageSize,
-                        ),
-                        size: canvasSize,
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (details) {
+                    _focusNode.requestFocus();
+                    _handleTap(
+                      _toImagePosition(
+                        details.localPosition,
+                        canvasSize,
+                        currentImageSize,
                       ),
-                    ],
+                    );
+                  },
+                  onDoubleTapDown: (details) {
+                    _handleDoubleTap(
+                      _toImagePosition(
+                        details.localPosition,
+                        canvasSize,
+                        currentImageSize,
+                      ),
+                    );
+                  },
+                  onDoubleTap: () {},
+                  onPanStart: (details) {
+                    _handlePanStart(
+                      _toImagePosition(
+                        details.localPosition,
+                        canvasSize,
+                        currentImageSize,
+                      ),
+                    );
+                  },
+                  onPanUpdate: (details) {
+                    _handlePanUpdate(
+                      _toImagePosition(
+                        details.localPosition,
+                        canvasSize,
+                        currentImageSize,
+                      ),
+                    );
+                  },
+                  onPanEnd: (_) => _handlePanEnd(),
+                  child: RepaintBoundary(
+                    child: ClipRect(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.memory(currentImageBytes, fit: BoxFit.fill),
+                          CustomPaint(
+                            painter: AnnotationCanvasPainter(
+                              elements: _controller.elements.toList(),
+                              activeElement: _buildActivePreview(),
+                              selectedElementIds: _controller.selectedElementIds
+                                  .toSet(),
+                              alignmentGuides: _controller.alignmentGuides
+                                  .toList(),
+                              stickerRenderCache: _stickerRenderCache,
+                              localizations: widget.localizations,
+                              selectionColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
+                              coordinateSize: currentImageSize,
+                            ),
+                            size: canvasSize,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            );
-          },
-        ),
-      );
-    });
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _cancelCreation();
+      _controller.clearSelection();
+      _controller.setTool(AnnotateTool.select);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
+      _controller.deleteSelected();
+      return KeyEventResult.handled;
+    }
+    const nudgeStep = 1.0;
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _controller.nudgeSelected(const Offset(-nudgeStep, 0));
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _controller.nudgeSelected(const Offset(nudgeStep, 0));
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _controller.nudgeSelected(const Offset(0, -nudgeStep));
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _controller.nudgeSelected(const Offset(0, nudgeStep));
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void _handleTap(Offset position) {
     if (_currentFreeDrawPoints.isNotEmpty) return;
-    switch (_controller.currentTool.value) {
+    final tool = _controller.currentTool.value;
+    switch (tool) {
       case AnnotateTool.eraser:
         _controller.eraseAt(position);
-        break;
+      case AnnotateTool.text:
+        _commitTextElement(position);
+      case AnnotateTool.counter:
+        _commitCounterElement(position);
+      case AnnotateTool.colorPicker:
+        widget.onColorPick?.call(position);
+      case AnnotateTool.fill:
+        widget.onFill?.call(position);
+      case AnnotateTool.select:
+        _selectTopmostAt(position);
       default:
         _selectTopmostAt(position);
-        break;
+    }
+  }
+
+  void _handleDoubleTap(Offset position) {
+    for (final element in _controller.elements.reversed) {
+      if (element is TextAnnotation && element.hitTest(position)) {
+        widget.onTextEdit?.call(element);
+        return;
+      }
     }
   }
 
   void _handlePanStart(Offset position) {
-    if (_controller.currentTool.value != AnnotateTool.pencil &&
-        _controller.currentTool.value != AnnotateTool.highlighter) {
-      return;
+    final tool = _controller.currentTool.value;
+    switch (tool) {
+      case AnnotateTool.pencil:
+      case AnnotateTool.highlighter:
+        _currentFreeDrawPoints
+          ..clear()
+          ..add(position);
+      case AnnotateTool.eraser:
+        _currentFreeDrawPoints
+          ..clear()
+          ..add(position);
+      case AnnotateTool.arrow:
+      case AnnotateTool.rectangle:
+      case AnnotateTool.ellipse:
+      case AnnotateTool.line:
+      case AnnotateTool.blur:
+      case AnnotateTool.solidRedaction:
+      case AnnotateTool.spotlight:
+        _creationStart = position;
+        _creationEnd = position;
+      case AnnotateTool.select:
+        _handleSelectPanStart(position);
+      default:
+        break;
     }
-    _currentFreeDrawPoints
-      ..clear()
-      ..add(position);
   }
 
   void _handlePanUpdate(Offset position) {
-    if (_currentFreeDrawPoints.isEmpty) return;
-    if (_currentFreeDrawPoints.length <
-        AnnotationController.maxFreeDrawPoints) {
-      _currentFreeDrawPoints.add(position);
-    } else {
-      _currentFreeDrawPoints[_currentFreeDrawPoints.length - 1] = position;
+    final tool = _controller.currentTool.value;
+    switch (tool) {
+      case AnnotateTool.pencil:
+      case AnnotateTool.highlighter:
+        if (_currentFreeDrawPoints.isEmpty) return;
+        if (_currentFreeDrawPoints.length <
+            AnnotationController.maxFreeDrawPoints) {
+          _currentFreeDrawPoints.add(position);
+        } else {
+          _currentFreeDrawPoints[_currentFreeDrawPoints.length - 1] = position;
+        }
+      case AnnotateTool.eraser:
+        if (_currentFreeDrawPoints.isNotEmpty) {
+          _currentFreeDrawPoints.add(position);
+        }
+      case AnnotateTool.arrow:
+      case AnnotateTool.rectangle:
+      case AnnotateTool.ellipse:
+      case AnnotateTool.line:
+      case AnnotateTool.blur:
+      case AnnotateTool.solidRedaction:
+      case AnnotateTool.spotlight:
+        _creationEnd = position;
+      case AnnotateTool.select:
+        _handleSelectPanUpdate(position);
+      default:
+        break;
     }
+    setState(() {});
   }
 
   void _handlePanEnd() {
+    final tool = _controller.currentTool.value;
+    switch (tool) {
+      case AnnotateTool.pencil:
+      case AnnotateTool.highlighter:
+        _commitFreeDraw();
+      case AnnotateTool.eraser:
+        if (_currentFreeDrawPoints.length >= 2) {
+          _controller.eraseAlongPath(_currentFreeDrawPoints);
+        }
+        _currentFreeDrawPoints.clear();
+      case AnnotateTool.arrow:
+        _commitArrowElement();
+      case AnnotateTool.rectangle:
+        _commitShapeElement(ShapeType.rectangle);
+      case AnnotateTool.ellipse:
+        _commitShapeElement(ShapeType.ellipse);
+      case AnnotateTool.line:
+        _commitLineElement();
+      case AnnotateTool.blur:
+        _commitBlurElement(BlurMode.mosaic);
+      case AnnotateTool.spotlight:
+        _commitBlurElement(BlurMode.spotlight);
+      case AnnotateTool.solidRedaction:
+        _commitSolidRedactionElement();
+      case AnnotateTool.select:
+        _handleSelectPanEnd();
+      default:
+        break;
+    }
+    _creationStart = null;
+    _creationEnd = null;
+    setState(() {});
+  }
+
+  void _commitFreeDraw() {
     if (_currentFreeDrawPoints.length < 2) {
       _currentFreeDrawPoints.clear();
       return;
@@ -207,19 +369,210 @@ class _AnnotationCanvasState extends State<AnnotationCanvas> {
     _currentFreeDrawPoints.clear();
   }
 
-  void _selectTopmostAt(Offset position) {
+  void _commitArrowElement() {
+    final start = _creationStart;
+    final end = _creationEnd;
+    if (start == null || end == null) return;
+    if ((start - end).distance < 3) return;
+    _controller.addElement(
+      ArrowElement(
+        startPoint: start,
+        endPoint: end,
+        color: _controller.currentColor.value,
+        strokeWidth: _controller.currentStrokeWidth.value,
+      ),
+    );
+  }
+
+  void _commitShapeElement(ShapeType type) {
+    final start = _creationStart;
+    final end = _creationEnd;
+    if (start == null || end == null) return;
+    final rect = Rect.fromPoints(start, end);
+    if (rect.width < 3 || rect.height < 3) return;
+    _controller.addElement(
+      ShapeElement(
+        rect: rect,
+        strokeColor: _controller.currentColor.value,
+        fillColor: _controller.useFillColor.value
+            ? _controller.currentFillColor.value
+            : null,
+        strokeWidth: _controller.currentStrokeWidth.value,
+        shapeType: type,
+      ),
+    );
+  }
+
+  void _commitLineElement() {
+    final start = _creationStart;
+    final end = _creationEnd;
+    if (start == null || end == null) return;
+    if ((start - end).distance < 3) return;
+    _controller.addElement(
+      ShapeElement(
+        rect: Rect.fromPoints(start, end),
+        strokeColor: _controller.currentColor.value,
+        strokeWidth: _controller.currentStrokeWidth.value,
+        shapeType: ShapeType.line,
+      ),
+    );
+  }
+
+  void _commitBlurElement(BlurMode mode) {
+    final start = _creationStart;
+    final end = _creationEnd;
+    if (start == null || end == null) return;
+    final rect = Rect.fromPoints(start, end);
+    if (rect.width < 5 || rect.height < 5) return;
+    _controller.addElement(
+      BlurElement(rect: rect, blurMode: mode, intensity: 10),
+    );
+  }
+
+  void _commitSolidRedactionElement() {
+    final start = _creationStart;
+    final end = _creationEnd;
+    if (start == null || end == null) return;
+    final rect = Rect.fromPoints(start, end);
+    if (rect.width < 3 || rect.height < 3) return;
+    _controller.addElement(
+      ShapeElement(
+        rect: rect,
+        strokeColor: _controller.currentColor.value,
+        fillColor: _controller.currentColor.value,
+        strokeWidth: 0,
+        shapeType: ShapeType.rectangle,
+      ),
+    );
+  }
+
+  void _commitTextElement(Offset position) {
+    _controller.addElement(
+      TextAnnotation(
+        text: '',
+        position: position,
+        textColor: _controller.currentColor.value,
+        fontSize: _controller.currentFontSize.value,
+      ),
+    );
+    final added = _controller.elements.last;
+    _controller.selectElement(added.id);
+    widget.onTextEdit?.call(added as TextAnnotation);
+  }
+
+  void _commitCounterElement(Offset position) {
+    _controller.addElement(
+      CounterElement(
+        number: _controller.nextCounter.value,
+        position: position,
+        color: _controller.currentColor.value,
+      ),
+    );
+  }
+
+  AnnotationElement? _buildActivePreview() {
+    final start = _creationStart;
+    final end = _creationEnd;
+    if (start == null || end == null) return null;
+    final tool = _controller.currentTool.value;
+    switch (tool) {
+      case AnnotateTool.arrow:
+        return ArrowElement(
+          startPoint: start,
+          endPoint: end,
+          color: _controller.currentColor.value.withValues(alpha: 0.6),
+          strokeWidth: _controller.currentStrokeWidth.value,
+        );
+      case AnnotateTool.rectangle:
+        return ShapeElement(
+          rect: Rect.fromPoints(start, end),
+          strokeColor: _controller.currentColor.value.withValues(alpha: 0.6),
+          fillColor: _controller.useFillColor.value
+              ? _controller.currentFillColor.value.withValues(alpha: 0.3)
+              : null,
+          strokeWidth: _controller.currentStrokeWidth.value,
+          shapeType: ShapeType.rectangle,
+        );
+      case AnnotateTool.ellipse:
+        return ShapeElement(
+          rect: Rect.fromPoints(start, end),
+          strokeColor: _controller.currentColor.value.withValues(alpha: 0.6),
+          fillColor: _controller.useFillColor.value
+              ? _controller.currentFillColor.value.withValues(alpha: 0.3)
+              : null,
+          strokeWidth: _controller.currentStrokeWidth.value,
+          shapeType: ShapeType.ellipse,
+        );
+      case AnnotateTool.line:
+        return ShapeElement(
+          rect: Rect.fromPoints(start, end),
+          strokeColor: _controller.currentColor.value.withValues(alpha: 0.6),
+          strokeWidth: _controller.currentStrokeWidth.value,
+          shapeType: ShapeType.line,
+        );
+      case AnnotateTool.blur:
+      case AnnotateTool.spotlight:
+      case AnnotateTool.solidRedaction:
+        return ShapeElement(
+          rect: Rect.fromPoints(start, end),
+          strokeColor: const Color(0x80808080),
+          strokeWidth: 1,
+          shapeType: ShapeType.rectangle,
+          isDashed: true,
+        );
+      default:
+        return null;
+    }
+  }
+
+  void _cancelCreation() {
+    _creationStart = null;
+    _creationEnd = null;
+    _currentFreeDrawPoints.clear();
+    setState(() {});
+  }
+
+  Offset? _selectDragStart;
+
+  void _handleSelectPanStart(Offset position) {
+    final hit = _selectTopmostAt(position);
+    if (hit) {
+      _selectDragStart = position;
+      _controller.beginElementTransform();
+    }
+  }
+
+  void _handleSelectPanUpdate(Offset position) {
+    final start = _selectDragStart;
+    if (start == null) return;
+    final delta = position - start;
+    _selectDragStart = position;
+    _controller.nudgeSelected(delta);
+    final selected = _controller.selectedElements;
+    if (selected.length == 1) {
+      _controller.updateAlignmentGuides(selected.first);
+    }
+  }
+
+  void _handleSelectPanEnd() {
+    _selectDragStart = null;
+    _controller.finishElementTransform();
+  }
+
+  bool _selectTopmostAt(Offset position) {
     for (final element in _controller.elements.reversed) {
       if (element.hitTest(position)) {
         _controller.selectElement(element.id);
-        return;
+        return true;
       }
     }
     _controller.selectElement(null);
+    return false;
   }
 
   void _disposeOwnedController() {
-    if (_ownsController && !_controller.isClosed) {
-      _controller.onDelete();
+    if (_ownsController) {
+      _controller.dispose();
     }
   }
 

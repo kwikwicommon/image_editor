@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import '../src/canvas/annotation_controller.dart';
 import '../src/core/image_editor_localizations.dart';
@@ -26,68 +25,71 @@ class AnnotationToolbar extends StatelessWidget {
       color: Theme.of(context).colorScheme.surface,
       child: SizedBox(
         width: 72,
-        child: Obx(() {
-          return ListView(
-            padding: const EdgeInsets.all(8),
-            children: [
-              for (final tool in enabledTools)
+        child: ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) {
+            return ListView(
+              padding: const EdgeInsets.all(8),
+              children: [
+                for (final tool in enabledTools)
+                  _ToolButton(
+                    icon: _toolIcon(tool),
+                    label: localizations.text(_toolLabelKey(tool)),
+                    selected: controller.currentTool.value == tool,
+                    onPressed: () => controller.setTool(tool),
+                  ),
+                const Divider(height: 16),
                 _ToolButton(
-                  icon: _toolIcon(tool),
-                  label: localizations.text(_toolLabelKey(tool)),
-                  selected: controller.currentTool.value == tool,
-                  onPressed: () => controller.setTool(tool),
+                  icon: Icons.undo_rounded,
+                  label: localizations.text('toolbar.undo'),
+                  onPressed: controller.undo,
                 ),
-              const Divider(height: 16),
-              _ToolButton(
-                icon: Icons.undo_rounded,
-                label: localizations.text('toolbar.undo'),
-                onPressed: controller.undo,
-              ),
-              _ToolButton(
-                icon: Icons.redo_rounded,
-                label: localizations.text('toolbar.redo'),
-                onPressed: controller.redo,
-              ),
-              const Divider(height: 16),
-              _ColorSwatch(
-                color: const Color(0xFFE11D48),
-                selected: controller.currentColor.value ==
-                    const Color(0xFFE11D48),
-                onSelected: controller.setColor,
-              ),
-              _ColorSwatch(
-                color: const Color(0xFF2563EB),
-                selected: controller.currentColor.value ==
-                    const Color(0xFF2563EB),
-                onSelected: controller.setColor,
-              ),
-              _ColorSwatch(
-                color: const Color(0xFF16A34A),
-                selected: controller.currentColor.value ==
-                    const Color(0xFF16A34A),
-                onSelected: controller.setColor,
-              ),
-              _ColorSwatch(
-                color: const Color(0xFFF59E0B),
-                selected: controller.currentColor.value ==
-                    const Color(0xFFF59E0B),
-                onSelected: controller.setColor,
-              ),
-              const SizedBox(height: 8),
-              RotatedBox(
-                quarterTurns: 3,
-                child: Slider(
-                  min: 1,
-                  max: 16,
-                  value: controller.currentStrokeWidth.value
-                      .clamp(1, 16)
-                      .toDouble(),
-                  onChanged: controller.setStrokeWidth,
+                _ToolButton(
+                  icon: Icons.redo_rounded,
+                  label: localizations.text('toolbar.redo'),
+                  onPressed: controller.redo,
                 ),
-              ),
-            ],
-          );
-        }),
+                const Divider(height: 16),
+                _ColorSwatch(
+                  color: const Color(0xFFE11D48),
+                  selected:
+                      controller.currentColor.value == const Color(0xFFE11D48),
+                  onSelected: controller.setColor,
+                ),
+                _ColorSwatch(
+                  color: const Color(0xFF2563EB),
+                  selected:
+                      controller.currentColor.value == const Color(0xFF2563EB),
+                  onSelected: controller.setColor,
+                ),
+                _ColorSwatch(
+                  color: const Color(0xFF16A34A),
+                  selected:
+                      controller.currentColor.value == const Color(0xFF16A34A),
+                  onSelected: controller.setColor,
+                ),
+                _ColorSwatch(
+                  color: const Color(0xFFF59E0B),
+                  selected:
+                      controller.currentColor.value == const Color(0xFFF59E0B),
+                  onSelected: controller.setColor,
+                ),
+                const SizedBox(height: 8),
+                RotatedBox(
+                  quarterTurns: 3,
+                  child: Slider(
+                    min: 1,
+                    max: 16,
+                    value: controller.currentStrokeWidth.value
+                        .clamp(1, 16)
+                        .toDouble(),
+                    onChanged: controller.setStrokeWidth,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -102,6 +104,8 @@ class AnnotationToolbar extends StatelessWidget {
         return Icons.crop_square_rounded;
       case AnnotateTool.ellipse:
         return Icons.radio_button_unchecked_rounded;
+      case AnnotateTool.line:
+        return Icons.horizontal_rule_rounded;
       case AnnotateTool.text:
         return Icons.title_rounded;
       case AnnotateTool.pencil:
@@ -120,6 +124,12 @@ class AnnotationToolbar extends StatelessWidget {
         return Icons.crop_rounded;
       case AnnotateTool.sticker:
         return Icons.emoji_symbols_rounded;
+      case AnnotateTool.fill:
+        return Icons.format_color_fill_rounded;
+      case AnnotateTool.colorPicker:
+        return Icons.colorize_rounded;
+      case AnnotateTool.solidRedaction:
+        return Icons.rectangle_rounded;
     }
   }
 
@@ -133,6 +143,8 @@ class AnnotationToolbar extends StatelessWidget {
         return 'toolbar.rectangle';
       case AnnotateTool.ellipse:
         return 'toolbar.ellipse';
+      case AnnotateTool.line:
+        return 'toolbar.line';
       case AnnotateTool.text:
         return 'toolbar.text';
       case AnnotateTool.pencil:
@@ -150,6 +162,12 @@ class AnnotationToolbar extends StatelessWidget {
         return 'toolbar.crop';
       case AnnotateTool.sticker:
         return 'sticker.title';
+      case AnnotateTool.fill:
+        return 'toolbar.fill';
+      case AnnotateTool.colorPicker:
+        return 'toolbar.colorPicker';
+      case AnnotateTool.solidRedaction:
+        return 'toolbar.solidRedaction';
     }
   }
 }

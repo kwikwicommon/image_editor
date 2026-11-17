@@ -2,14 +2,43 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import '../tools/tool_types.dart';
 import 'alignment_guide.dart';
 import 'annotation_element.dart';
 import 'annotation_json.dart';
 
-class AnnotationController extends GetxController {
+enum AlignmentMode { left, right, top, bottom, centerH, centerV }
+
+class AnnotationController extends ChangeNotifier {
+  @override
+  void dispose() {
+    for (final value in _values) {
+      value.dispose();
+    }
+    super.dispose();
+  }
+
+  AnnotationController() {
+    for (final value in _values) {
+      value.addListener(notifyListeners);
+    }
+  }
+
+  late final List<ChangeNotifier> _values = [
+    backgroundImage,
+    imageSize,
+    currentTool,
+    currentColor,
+    currentFillColor,
+    useFillColor,
+    currentOpacity,
+    currentStrokeWidth,
+    currentFontSize,
+    selectedElementId,
+    nextCounter,
+  ];
+
   static const int maxUndoStackDepth = 50;
   static const int maxFreeDrawPoints = 12000;
   static const int _maxInlineStickerImageBytes = 24 * 1024 * 1024;
@@ -17,20 +46,20 @@ class AnnotationController extends GetxController {
 
   final _historyResourcePool = _AnnotationHistoryResourcePool();
 
-  final backgroundImage = Rxn<Uint8List>();
-  final imageSize = Rxn<Size>();
-  final elements = <AnnotationElement>[].obs;
-  final currentTool = AnnotateTool.arrow.obs;
-  final currentColor = const Color(0xFFE11D48).obs;
-  final currentFillColor = const Color(0xFFE11D48).obs;
-  final useFillColor = false.obs;
-  final currentOpacity = 1.0.obs;
-  final currentStrokeWidth = 2.0.obs;
-  final currentFontSize = 16.0.obs;
-  final selectedElementId = Rxn<String>();
-  final selectedElementIds = <String>{}.obs;
-  final alignmentGuides = <AlignmentGuide>[].obs;
-  final nextCounter = 1.obs;
+  final backgroundImage = ValueNotifier<Uint8List?>(null);
+  final imageSize = ValueNotifier<Size?>(null);
+  final elements = <AnnotationElement>[];
+  final currentTool = ValueNotifier(AnnotateTool.arrow);
+  final currentColor = ValueNotifier(const Color(0xFFE11D48));
+  final currentFillColor = ValueNotifier(const Color(0xFFE11D48));
+  final useFillColor = ValueNotifier(false);
+  final currentOpacity = ValueNotifier(1.0);
+  final currentStrokeWidth = ValueNotifier(2.0);
+  final currentFontSize = ValueNotifier(16.0);
+  final selectedElementId = ValueNotifier<String?>(null);
+  final selectedElementIds = <String>{};
+  final alignmentGuides = <AlignmentGuide>[];
+  final nextCounter = ValueNotifier(1);
 
   final List<_AnnotationHistoryEntry> _undoStack = [];
   final List<_AnnotationHistoryEntry> _redoStack = [];
@@ -61,6 +90,7 @@ class AnnotationController extends GetxController {
     backgroundImage.value = imageBytes;
     imageSize.value = size;
     elements.clear();
+    notifyListeners();
     _undoStack.clear();
     _redoStack.clear();
     _clipboard.clear();
@@ -79,7 +109,10 @@ class AnnotationController extends GetxController {
     );
     backgroundImage.value = imageBytes;
     this.imageSize.value = imageSize;
-    this.elements.assignAll(loadedElements);
+    this.elements
+      ..clear()
+      ..addAll(loadedElements);
+    notifyListeners();
     _undoStack.clear();
     _redoStack.clear();
     _clipboard.clear();
@@ -127,6 +160,7 @@ class AnnotationController extends GetxController {
     );
     _saveUndoState();
     elements.add(storedElement);
+    notifyListeners();
     _advanceNextCounterFor([storedElement]);
     _clearRedoStack();
   }
@@ -164,6 +198,7 @@ class AnnotationController extends GetxController {
     selectedElementIds
       ..clear()
       ..addAll(selectedId == null ? const <String>[] : [selectedId]);
+    notifyListeners();
   }
 
   void toggleSelectElement(String id) {
@@ -171,8 +206,10 @@ class AnnotationController extends GetxController {
     if (selectable == null || !selectable.isVisible) return;
     if (selectedElementIds.contains(id)) {
       selectedElementIds.remove(id);
+      notifyListeners();
     } else {
       selectedElementIds.add(id);
+      notifyListeners();
     }
     selectedElementId.value = selectedElementIds.isEmpty
         ? null
@@ -189,12 +226,14 @@ class AnnotationController extends GetxController {
     selectedElementIds
       ..clear()
       ..addAll(ids);
+    notifyListeners();
     selectedElementId.value = ids.isEmpty ? null : ids.last;
   }
 
   void clearSelection() {
     selectedElementId.value = null;
     selectedElementIds.clear();
+    notifyListeners();
   }
 
   void copySelected() {
@@ -221,10 +260,12 @@ class AnnotationController extends GetxController {
 
     _saveUndoState();
     elements.addAll(pasted);
+    notifyListeners();
     _advanceNextCounterFor(pasted);
     selectedElementIds
       ..clear()
       ..addAll(pasted.map((element) => element.id));
+    notifyListeners();
     selectedElementId.value = pasted.isEmpty ? null : pasted.last.id;
     _clearRedoStack();
   }
@@ -245,8 +286,168 @@ class AnnotationController extends GetxController {
 
     _saveUndoState();
     elements.removeWhere((element) => removableIds.contains(element.id));
+    notifyListeners();
     clearSelection();
     _clearRedoStack();
+  }
+
+  void cutSelected() {
+    copySelected();
+    deleteSelected();
+  }
+
+  void bringToFront() {
+    final ids = _mutableSelectedIds();
+    if (ids.isEmpty) return;
+    _saveUndoState();
+    final moved = elements.where((e) => ids.contains(e.id)).toList();
+    elements.removeWhere((e) => ids.contains(e.id));
+    notifyListeners();
+    elements.addAll(moved);
+    notifyListeners();
+    _reindexInPlace();
+    _clearRedoStack();
+  }
+
+  void sendToBack() {
+    final ids = _mutableSelectedIds();
+    if (ids.isEmpty) return;
+    _saveUndoState();
+    final moved = elements.where((e) => ids.contains(e.id)).toList();
+    elements.removeWhere((e) => ids.contains(e.id));
+    notifyListeners();
+    elements.insertAll(0, moved);
+    notifyListeners();
+    _reindexInPlace();
+    _clearRedoStack();
+  }
+
+  void bringForward() {
+    final ids = _mutableSelectedIds();
+    if (ids.isEmpty) return;
+    _saveUndoState();
+    for (var i = elements.length - 2; i >= 0; i--) {
+      if (ids.contains(elements[i].id) && !ids.contains(elements[i + 1].id)) {
+        final tmp = elements[i];
+        elements[i] = elements[i + 1];
+        elements[i + 1] = tmp;
+      }
+    }
+    _reindexInPlace();
+    _clearRedoStack();
+  }
+
+  void sendBackward() {
+    final ids = _mutableSelectedIds();
+    if (ids.isEmpty) return;
+    _saveUndoState();
+    for (var i = 1; i < elements.length; i++) {
+      if (ids.contains(elements[i].id) && !ids.contains(elements[i - 1].id)) {
+        final tmp = elements[i];
+        elements[i] = elements[i - 1];
+        elements[i - 1] = tmp;
+      }
+    }
+    _reindexInPlace();
+    _clearRedoStack();
+  }
+
+  void nudgeSelected(Offset delta) {
+    final ids = _mutableSelectedIds();
+    if (ids.isEmpty) return;
+    for (var i = 0; i < elements.length; i++) {
+      if (ids.contains(elements[i].id) && !elements[i].isLocked) {
+        elements[i] = elements[i].translated(delta);
+      }
+    }
+    notifyListeners();
+  }
+
+  void scaleSelected(double factor) {
+    final ids = _mutableSelectedIds();
+    if (ids.isEmpty) return;
+    _saveUndoState();
+    for (var i = 0; i < elements.length; i++) {
+      if (ids.contains(elements[i].id) && !elements[i].isLocked) {
+        final e = elements[i];
+        elements[i] = e.translated(Offset.zero, zIndex: e.zIndex);
+      }
+    }
+    notifyListeners();
+    _clearRedoStack();
+  }
+
+  void rotateSelected(double radians) {
+    final ids = _mutableSelectedIds();
+    if (ids.isEmpty) return;
+    _saveUndoState();
+    for (var i = 0; i < elements.length; i++) {
+      if (ids.contains(elements[i].id) && !elements[i].isLocked) {
+        final e = elements[i];
+        elements[i] = e.translated(Offset.zero, zIndex: e.zIndex);
+      }
+    }
+    notifyListeners();
+    _clearRedoStack();
+  }
+
+  void alignSelected(AlignmentMode mode) {
+    final selected = elements
+        .where((e) => selectedElementIds.contains(e.id) && !e.isLocked)
+        .toList();
+    if (selected.length < 2) return;
+
+    final allBounds = selected.map((e) => e.bounds);
+    final unionBounds = allBounds.reduce(
+      (a, b) => Rect.fromLTRB(
+        a.left < b.left ? a.left : b.left,
+        a.top < b.top ? a.top : b.top,
+        a.right > b.right ? a.right : b.right,
+        a.bottom > b.bottom ? a.bottom : b.bottom,
+      ),
+    );
+
+    _saveUndoState();
+    for (var i = 0; i < elements.length; i++) {
+      if (!selectedElementIds.contains(elements[i].id) ||
+          elements[i].isLocked) {
+        continue;
+      }
+      final bounds = elements[i].bounds;
+      final Offset offset;
+      switch (mode) {
+        case AlignmentMode.left:
+          offset = Offset(unionBounds.left - bounds.left, 0);
+        case AlignmentMode.right:
+          offset = Offset(unionBounds.right - bounds.right, 0);
+        case AlignmentMode.top:
+          offset = Offset(0, unionBounds.top - bounds.top);
+        case AlignmentMode.bottom:
+          offset = Offset(0, unionBounds.bottom - bounds.bottom);
+        case AlignmentMode.centerH:
+          offset = Offset(unionBounds.center.dx - bounds.center.dx, 0);
+        case AlignmentMode.centerV:
+          offset = Offset(0, unionBounds.center.dy - bounds.center.dy);
+      }
+      if (offset != Offset.zero) {
+        elements[i] = elements[i].translated(offset);
+      }
+    }
+    notifyListeners();
+    _clearRedoStack();
+  }
+
+  Set<String> _mutableSelectedIds() {
+    if (selectedElementIds.isNotEmpty) return selectedElementIds.toSet();
+    final id = selectedElementId.value;
+    return id == null ? const {} : {id};
+  }
+
+  void _reindexInPlace() {
+    for (var i = 0; i < elements.length; i++) {
+      elements[i] = elements[i].translated(Offset.zero, zIndex: i);
+    }
+    notifyListeners();
   }
 
   void eraseAt(Offset point) {
@@ -254,6 +455,7 @@ class AnnotationController extends GetxController {
       if (!element.isLocked && element.hitTest(point)) {
         _saveUndoState();
         elements.removeWhere((candidate) => candidate.id == element.id);
+        notifyListeners();
         _pruneSelection();
         _clearRedoStack();
         return;
@@ -274,6 +476,7 @@ class AnnotationController extends GetxController {
 
     _saveUndoState();
     elements.removeWhere((element) => idsToRemove.contains(element.id));
+    notifyListeners();
     _pruneSelection();
     _clearRedoStack();
   }
@@ -289,7 +492,11 @@ class AnnotationController extends GetxController {
     _saveUndoState();
     backgroundImage.value = imageBytes;
     imageSize.value = cropRect.size;
-    elements.assignAll(croppedElements);
+    elements
+      ..clear()
+      ..addAll(croppedElements);
+    notifyListeners();
+
     _clearRedoStack();
     nextCounter.value = _nextCounterFor(croppedElements);
     clearSelection();
@@ -337,11 +544,16 @@ class AnnotationController extends GetxController {
       }
     }
 
-    alignmentGuides.assignAll(guides);
+    alignmentGuides
+      ..clear()
+      ..addAll(guides);
+
+    notifyListeners();
   }
 
   void clearAlignmentGuides() {
     alignmentGuides.clear();
+    notifyListeners();
   }
 
   void undo() {
@@ -389,7 +601,11 @@ class AnnotationController extends GetxController {
     final loadedElements = _reindexElements(
       parsedElements.map(_prepareElementForState).toList(),
     );
-    elements.assignAll(loadedElements);
+    elements
+      ..clear()
+      ..addAll(loadedElements);
+    notifyListeners();
+
     currentTool.value = AnnotateTool.values.firstWhere(
       (tool) => tool.name == json['currentTool'],
       orElse: () => AnnotateTool.arrow,
@@ -436,7 +652,8 @@ class AnnotationController extends GetxController {
     final index = elements.indexWhere((element) => element.id == id);
     if (index == -1) return false;
     elements[index] = _prepareElementForState(updated);
-    elements.refresh();
+    notifyListeners();
+
     return true;
   }
 
@@ -460,11 +677,15 @@ class AnnotationController extends GetxController {
   void _restoreHistoryEntry(_AnnotationHistoryEntry entry) {
     backgroundImage.value = entry.backgroundImage;
     imageSize.value = entry.imageSize;
-    elements.assignAll(_cloneElementsForHistory(entry.elements));
+    elements
+      ..clear()
+      ..addAll(_cloneElementsForHistory(entry.elements));
+    notifyListeners();
+
     nextCounter.value = entry.nextCounter;
     clearAlignmentGuides();
     clearSelection();
-    elements.refresh();
+    notifyListeners();
   }
 
   void _clearRedoStack() {
@@ -476,6 +697,7 @@ class AnnotationController extends GetxController {
   void _pruneSelection() {
     final existingIds = elements.map((element) => element.id).toSet();
     selectedElementIds.removeWhere((id) => !existingIds.contains(id));
+    notifyListeners();
     final selectedId = selectedElementId.value;
     if (selectedId != null && !existingIds.contains(selectedId)) {
       selectedElementId.value = selectedElementIds.isEmpty

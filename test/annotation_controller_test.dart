@@ -5,6 +5,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_editor/image_editor.dart';
 
 void main() {
+  test('listeners observe element edits, selection, and undo', () {
+    final controller = AnnotationController();
+    addTearDown(controller.dispose);
+    final shape = ShapeElement(rect: const Rect.fromLTWH(0, 0, 20, 20));
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+
+    controller.addElement(shape);
+    expect(notifications, greaterThan(0));
+    notifications = 0;
+    controller.selectElement(shape.id);
+    expect(controller.selectedElementIds, contains(shape.id));
+    expect(notifications, greaterThan(0));
+    notifications = 0;
+    controller.deleteSelected();
+    expect(controller.elements, isEmpty);
+    expect(notifications, greaterThan(0));
+    notifications = 0;
+    controller.undo();
+    expect(controller.elements.single.id, shape.id);
+    expect(notifications, greaterThan(0));
+  });
+
   test('AnnotationController undo and redo restore element history', () {
     final controller = AnnotationController();
     final first = ShapeElement(rect: const Rect.fromLTWH(0, 0, 10, 10));
